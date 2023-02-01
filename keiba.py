@@ -13,22 +13,22 @@ import pandas as pd
 # ====================
 
 # 取得したい年
-from_year = 2022
+from_year = 2013
 to_year = 2023
 
 # 最大開催数 = 5
-max_number_of_times = 1
+max_number_of_times = 5
 
 # 最大開催日 = 9
-max_number_of_date = 1
+max_number_of_date = 9
 
 # 開催地コード
 # '06': '中山', '07': '中京', '09': '阪神', '10': '小倉'
-venue_code_list = {'06': '中山', '07': '中京'}
+venue_code_list = {'06': '中山', '07': '中京', '09': '阪神', '10': '小倉'}
 
 # 1日のレース数
-race_code_list = ['01', '02', '03']
-# race_code_list = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
+# race_code_list = ['01', '02', '03']
+race_code_list = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
 
 # ====================
 # 編集エリア end
@@ -57,7 +57,7 @@ def get_date(soup, year):
     date_element = soup.find('dd', class_="Active")
     if date_element == None:
         print('レースが存在しません')
-        return 'レースが存在しません'
+        return False
 
     date = date_element.find('a').text
     if date.find('/') != -1 and date.find('(') == -1:
@@ -91,22 +91,14 @@ def get_race_data(soup):
 # レース詳細取得
 def get_race_detail(race_data_01_list, race_data_02_list, date):
     race_detail = {}
-    track = race_data_01_list[0].string.strip()[0]
-    if track == "ダ":
-        track = "ダート"
-    distance = race_data_01_list[0].string.strip()[1:-1]
-    track_condition = race_data_01_list[2].string.strip()[-1]
-    venue = race_data_02_list[1].string.strip()
-    race = race_data_02_list[3].string.strip()
-    rank = race_data_02_list[4].string.strip().replace('クラス', '').replace('オープン', 'OP')
-
     race_detail['date'] = date
-    race_detail['track'] = track
-    race_detail['distance'] = distance
-    race_detail['track_condition'] = track_condition
-    race_detail['venue'] = venue
-    race_detail['race'] = race
-    race_detail['rank'] = rank
+    track = race_data_01_list[0].string.strip()[0] if bool(race_data_01_list[0].string) else 'unknown'
+    race_detail['track'] = "ダート" if track == "ダ" else track
+    race_detail['distance'] = race_data_01_list[0].string.strip()[1:-1] if bool(race_data_01_list[0].string) else 'unknown'
+    race_detail['track_condition'] = race_data_01_list[2].string.strip()[-1] if bool(race_data_01_list[2].string) else 'unknown'
+    race_detail['venue'] = race_data_02_list[1].string.strip() if bool(race_data_02_list[1].string) else 'unknown'
+    race_detail['race'] = race_data_02_list[3].string.strip() if bool(race_data_02_list[3].string) else 'unknown'
+    race_detail['rank'] = race_data_02_list[4].string.strip().replace('クラス', '').replace('オープン', 'OP') if bool(race_data_02_list[4].string) else 'unknown'
 
     return race_detail
 
@@ -149,10 +141,7 @@ def get_horse_detail(soup):
 
             # 騎手
             jockey = get_horse_detail_tr[i].find_all('a')[1]
-            if bool(jockey.find('font')):
-                horse_info['jockey'] = jockey.find('font').string.strip()
-            else:
-                horse_info['jockey'] = jockey.string.strip()
+            horse_info['jockey'] = jockey.find('font').string.strip() if bool(jockey.find('font')) else jockey.string.strip()
 
             # タイム
             horse_info['time'] = get_horse_detail_tr[i].find('span', class_="RaceTime").string
@@ -231,7 +220,7 @@ for year in range(to_year - from_year + 1):
 
                     # 日時取得
                     date = get_date(soup, target_year)
-                    if date == 'レースが存在しません':
+                    if not bool(date):
                         break
 
                     # レースデータ取得
@@ -349,4 +338,4 @@ result = pd.DataFrame({'日付': date_list,'会場': track_list,'距離': distan
 
 # Block14
 # csv 出力
-result.to_csv('keiba.csv', index=False, encoding='utf-8')
+result.to_csv('keiba.csv', index=False, encoding='utf-8_sig')
