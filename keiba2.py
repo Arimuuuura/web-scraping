@@ -23,10 +23,8 @@ domain = "https://race.netkeiba.com/race/shutuba_past.html?race_id="
 # 編集エリア start
 # ====================
 
-dir_name = 'test' # フォルダ名
+dir_name = 'result' # フォルダ名
 file_name = 'output.xlsx' # エクセルファイル名
-# dir_name = 'result' # フォルダ名
-# file_name = 'output.xlsx' # エクセルファイル名
 sheet_title = '出走機会' # エクセルシート名
 output_location = '.' # ファイルの出力先
 
@@ -37,21 +35,21 @@ to_year = 2023
 # 開催数(第○回)
 # 最大 = '05'
 # '01', '02', '03', '04', '05'
-times_code_list = ['03', '04', '05']
+times_code_list = ['01', '02', '03']
 
 # 開催日(○日目)
 # 最大 = '09'
 # '01', '02', '03', '04', '05', '06', '07', '08', '09'
-date_code_list = ['01', '02', '03', '04', '05', '06', '07', '08', '09']
+date_code_list = ['01', '02', '03']
 
 # 開催地コード
 # '01': '札幌', '02': '函館', '03': '福島', '04': '新潟', '05': '東京', '06': '中山', '07': '中京', '08': '京都', '09': '阪神', '10': '小倉'
-venue_code_list = {'01': '札幌'}
+venue_code_list = {'01': '札幌', '02': '函館'}
 
 # 1日のレース数
 # 最大 = '12'
 # '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'
-race_code_list = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
+race_code_list = ['01', '02', '03']
 
 # ====================
 # 編集エリア end
@@ -127,31 +125,26 @@ def create_data_result(domain, target_year, venue_code, times_code, date_code, d
         else:
             continue
 
+# 馬名, ダート出走回数, 芝出走回数の配列作成
+def create_horse_data_list(result, name, dirt_race_count, turf_race_count):
+    horse_data = []
+    horse_data.append(name)
+    horse_data.append(dirt_race_count[name])
+    horse_data.append(turf_race_count[name])
+    result.append(horse_data)
+
 # データ集計
 def format_data_result(dirt_race_list, turf_race_list):
     dirt_race_count = collections.Counter(dirt_race_list)
     turf_race_count = collections.Counter(turf_race_list)
-    print(f'dirt_race_list: {dirt_race_list}')
-    print(f'turf_race_list: {turf_race_list}')
-    print(f'dirt_race_count: {dirt_race_count}')
-    print(f'turf_race_count: {turf_race_count}')
     result = []
     for name in dirt_race_count:
-        horse_data = {}
-        horse_data['name'] = name
-        horse_data['dirt'] = dirt_race_count[name]
-        horse_data['turf'] = turf_race_count[name]
-        result.append(horse_data)
+        create_horse_data_list(result, name, dirt_race_count, turf_race_count)
 
     for name in turf_race_list:
         # 出走機会が芝のみの場合を考慮
         if not name in dirt_race_count:
-            horse_data = {}
-            horse_data['name'] = name
-            horse_data['dirt'] = dirt_race_count[name]
-            horse_data['turf'] = turf_race_count[name]
-            result.append(horse_data)
-    print(f'result: {result}')
+            create_horse_data_list(result, name, dirt_race_count, turf_race_count)
     return result
 
 # エクセルファイルの作成
@@ -224,11 +217,24 @@ def update_excel_file(wb, index, venue_code, result):
                 target_row = name_result.index(horse['name']) + 1
                 ws.cell(target_row, index + col_num_2 + index, value=horse['turf']) # 芝の出走機会
                 ws.cell(target_row, index + col_num_3 + index, value=horse['dirt']) # ダートの出走機会
-        wb.save(f'{output_location}/{dir_name}/{file_name}')
+    wb.save(f'{output_location}/{dir_name}/{file_name}')
     print('')
     print(f'[{get_now_time()}] ◇◇◇ Successful file saved ◇◇◇')
     print(f'[{get_now_time()}] ◇◇◇ Output location is {output_location}/{dir_name}/{file_name} ◇◇◇')
     print('')
+
+# 重複削除
+def get_unique_list(result):
+	seen = []
+	unique_list = [list for list in result if list not in seen and not seen.append(list)]
+	unique_result_list = []
+	for i in unique_list:
+		result_obj = {}
+		result_obj['name'] = i[0]
+		result_obj['dirt'] = i[1]
+		result_obj['turf'] = i[2]
+		unique_result_list.append(result_obj)
+	return unique_result_list
 
 # 現在時刻取得(ログ出力)
 def get_now_time():
@@ -263,7 +269,6 @@ for index, venue_code in enumerate(venue_code_list):
                 print(f'[{get_now_time()}] Day {date_code} Loading...')
                 with ThreadPoolExecutor(max_workers=number_of_max_workers) as executor:
                     executor.map(create_data_result, repeat(domain), repeat(target_year), repeat(venue_code), repeat(times_code), repeat(date_code), repeat(dirt_race_list), repeat(turf_race_list), race_code_list)
-
             print(f'[{get_now_time()}] {venue_code_list[venue_code]} {times_code}{suffix} <<<===')
 
         print('')
@@ -272,8 +277,9 @@ for index, venue_code in enumerate(venue_code_list):
         time.sleep(time_to_unload_sec)
 
     result = format_data_result(dirt_race_list, turf_race_list)
+    unique_result = get_unique_list(result)
     wb = create_excel_file()
-    update_excel_file(wb, index, venue_code, result)
+    update_excel_file(wb, index, venue_code, unique_result)
     print('========================================')
     print(f'[{get_now_time()}] Finished {venue_code_list[venue_code]} Race')
     print('========================================')
